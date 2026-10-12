@@ -1,0 +1,8 @@
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Caddy local data (if any gets created here)
+.caddy/

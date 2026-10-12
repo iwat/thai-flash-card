@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>บัตรคำ · Thai Sight Words</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --correct: #16a34a;
+    --correct-press: #15803d;
+    --wrong: #dc2626;
+    --wrong-press: #b91c1c;
+    --accent: #38bdf8;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Noto Sans Thai", "Sarabun", "Thonburi", "Leelawadee UI", system-ui, sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    height: 100dvh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ---------- top bar ---------- */
+  header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    font-size: 15px;
+    color: var(--muted);
+  }
+  header .spacer { flex: 1 1 auto; }
+  header select, header button {
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 8px 12px;
+    cursor: pointer;
+    max-width: 48vw;
+  }
+  header select:focus, header button:focus { outline: 2px solid var(--accent); }
+  #stats { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #stats b { color: var(--text); }
+
+  /* ---------- deck nav arrows ---------- */
+  .deckNav {
+    background: var(--panel);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 16px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+
+  /* ---------- card ---------- */
+  #card {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+  }
+  #word {
+    line-height: 1.05;
+    text-align: center;
+    white-space: nowrap;
+    font-weight: 700;
+    padding: 0 2vw;
+    will-change: font-size;
+  }
+  #hint {
+    position: absolute;
+    bottom: 10px;
+    left: 0; right: 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    opacity: .6;
+  }
+
+  /* ---------- buttons ---------- */
+  #controls {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 14px;
+    padding: 14px;
+  }
+  .btn {
+    flex: 1 1 0;
+    border: none;
+    border-radius: 20px;
+    color: #fff;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: clamp(22px, 4.5vh, 40px);
+    padding: 24px 10px;
+    min-height: 14vh;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: transform .05s ease, filter .05s ease;
+    touch-action: manipulation;
+  }
+  .btn small { font-size: .5em; font-weight: 600; opacity: .9; }
+  .btn:active { transform: scale(.97); filter: brightness(1.1); }
+  #wrong  { background: var(--wrong); }
+  #wrong:active  { background: var(--wrong-press); }
+  #correct { background: var(--correct); }
+  #correct:active { background: var(--correct-press); }
+
+  /* flash feedback */
+  #card.flash-correct { animation: fc .35s ease; }
+  #card.flash-wrong { animation: fw .35s ease; }
+  @keyframes fc { 0% { background: rgba(22,163,74,.35);} 100% { background: transparent; } }
+  @keyframes fw { 0% { background: rgba(220,38,38,.35);} 100% { background: transparent; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button id="prevDeck" class="deckNav" title="ชุดก่อนหน้า">‹</button>
+    <select id="deckSelect" aria-label="เลือกชุดบัตรคำ"></select>
+    <button id="nextDeck" class="deckNav" title="ชุดถัดไป">›</button>
+    <span class="spacer"></span>
+    <span id="stats"></span>
+    <button id="resetBtn" title="ล้างค่าความถี่ของชุดนี้">รีเซ็ต</button>
+  </header>
+
+  <div id="card" aria-live="polite">
+    <div id="word">—</div>
+    <div id="hint">แตะคำเพื่อข้าม · ← ผิด · → ถูก</div>
+  </div>
+
+  <div id="controls">
+    <button id="wrong" class="btn">ผิด<small>Wrong</small></button>
+    <button id="correct" class="btn">ถูก<small>Correct</small></button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ====================================================================
+   Word lists (100 one-syllable + 100 two-syllable)
+   -------------------------------------------------------------------- */
+const WORDS_ONE = [
+  "พ่อ","แม่","พี่","น้อง","ปู่","ย่า","ตา","ยาย","ลุง","ป้า",
+  "น้า","อา","กิน","นอน","เดิน","วิ่ง","นั่ง","ยืน","ดู","ฟัง",
+  "พูด","อ่าน","เขียน","เล่น","หมา","แมว","ไก่","เป็ด","หมู","วัว",
+  "ช้าง","ม้า","ปลา","นก","หนู","บ้าน","รถ","เรือ","น้ำ","ไฟ",
+  "ลม","ฝน","ดิน","ฟ้า","ดาว","มือ","เท้า","หู","ปาก","ผม",
+  "ฟัน","คอ","แขน","ขา","สี","แดง","ขาว","ดำ","เขียว","ม่วง",
+  "ส้ม","หนึ่ง","สอง","สาม","สี่","ห้า","หก","เจ็ด","แปด","เก้า",
+  "สิบ","ดี","เก่ง","สวย","ใหญ่","เล็ก","สูง","เตี้ย","ยาว","สั้น",
+  "ร้อน","หนาว","เย็น","หวาน","เค็ม","ขม","มา","ไป","ให้","เอา",
+  "ซื้อ","ขาย","ทำ","รัก","ชอบ","นี่","นั่น","โน่น","มี","ไหน"
+];
+
+const WORDS_TWO = [
+  "โรงเรียน","นักเรียน","ดินสอ","กระดาษ","หนังสือ","กระเป๋า","โต๊ะเรียน","เก้าอี้","กระดาน","สมุด",
+  "มะม่วง","มะนาว","มะพร้าว","แตงโม","ส้มโอ","องุ่น","น้อยหน่า","ทุเรียน","มังคุด","ลำไย",
+  "ชมพู่","กระท้อน","กระต่าย","จิ้งจก","ตุ๊กแก","แมงมุม","ผีเสื้อ","แมลง","กระรอก","นกแก้ว",
+  "นกยูง","หอยทาก","เต่าทอง","แมงปอ","ยุงลาย","มดแดง","ปลาทอง","ปลาหมึก","ปูม้า","ดอกไม้",
+  "ต้นไม้","ใบไม้","ภูเขา","ทะเล","แม่น้ำ","ท้องฟ้า","ก้อนเมฆ","สายรุ้ง","ดวงดาว","ดวงจันทร์",
+  "แสงแดด","สายฝน","ลมพัด","น้ำตก","สะพาน","ถนน","รถไฟ","รถเมล์","เครื่องบิน","เรือใบ",
+  "บ้านเรือน","หน้าต่าง","ประตู","กระจก","พัดลม","ตู้เย็น","โซฟา","เตียงนอน","ผ้าห่ม","เสื้อผ้า",
+  "กางเกง","รองเท้า","ถุงเท้า","กระโปรง","แว่นตา","ยางลบ","สีเทียน","พู่กัน","ลูกบอล","หุ่นยนต์",
+  "รถเข็น","ขนม","ข้าวสวย","ก๋วยเตี๋ยว","ไข่ดาว","นมสด","น้ำแข็ง","น้ำผึ้ง","กาแฟ","ครอบครัว",
+  "เพื่อนบ้าน","คุณครู","หมอฟัน","ตำรวจ","ทหาร","ชาวนา","พ่อค้า","แม่ค้า","เพื่อนรัก","ของเล่น"
+];
+
+/* ====================================================================
+   Decks — split each list into chunks of ~25 words
+   -------------------------------------------------------------------- */
+const DECK_SIZE = 25;
+
+function buildDecks(list, idPrefix, groupLabel) {
+  const decks = [];
+  for (let i = 0; i < list.length; i += DECK_SIZE) {
+    const words = list.slice(i, i + DECK_SIZE);
+    const n = decks.length + 1;
+    decks.push({
+      id: idPrefix + n,
+      group: groupLabel,
+      name: `ชุดที่ ${n} (${i + 1}–${i + words.length})`,
+      words
+    });
+  }
+  return decks;
+}
+
+const DECKS = [
+  ...buildDecks(WORDS_ONE, "one-", "พยางค์เดียว · 1 syllable"),
+  ...buildDecks(WORDS_TWO, "two-", "สองพยางค์ · 2 syllables")
+];
+
+function deckById(id) { return DECKS.find(d => d.id === id) || DECKS[0]; }
+
+/* ====================================================================
+   Frequency weighting (spaced-repetition style), per word
+   -------------------------------------------------------------------- */
+const BASE_WEIGHT   = 1;      // starting weight for every word
+const MIN_WEIGHT    = 0.15;   // "mastered" floor
+const MAX_WEIGHT    = 25;     // keeps a stubborn word from dominating
+const CORRECT_MULT  = 0.55;   // correct -> appear LESS often
+const WRONG_MULT    = 1.9;    // wrong   -> appear MORE often
+
+const LS_WEIGHTS = "thaiFlash.weights.v1";
+const LS_DECK    = "thaiFlash.deck.v2";
+
+let weights = {};       // { word: weight }
+let activeDeck = DECKS[0];
+let currentWord = null;
+let seen = 0, correctCount = 0;   // session counters for the active deck
+
+function loadState() {
+  try { weights = JSON.parse(localStorage.getItem(LS_WEIGHTS)) || {}; }
+  catch { weights = {}; }
+  activeDeck = deckById(localStorage.getItem(LS_DECK));
+}
+function saveWeights() {
+  try { localStorage.setItem(LS_WEIGHTS, JSON.stringify(weights)); } catch {}
+}
+function saveDeck() {
+  try { localStorage.setItem(LS_DECK, activeDeck.id); } catch {}
+}
+
+function currentList() { return activeDeck.words; }
+
+/** Ensure every word in the active deck has a weight entry. */
+function ensureWeights() {
+  for (const w of currentList()) {
+    if (typeof weights[w] !== "number" || !isFinite(weights[w])) weights[w] = BASE_WEIGHT;
+  }
+}
+
+function clamp(v) { return Math.min(MAX_WEIGHT, Math.max(MIN_WEIGHT, v)); }
+
+/** Pick a word in the active deck, weighted, avoiding an immediate repeat. */
+function pickWord() {
+  const list = currentList();
+  let total = 0;
+  for (const w of list) {
+    if (w === currentWord && list.length > 1) continue;
+    total += weights[w];
+  }
+  let r = Math.random() * total;
+  for (const w of list) {
+    if (w === currentWord && list.length > 1) continue;
+    r -= weights[w];
+    if (r <= 0) return w;
+  }
+  return list[list.length - 1];
+}
+
+/* ====================================================================
+   Rendering
+   -------------------------------------------------------------------- */
+const cardEl    = document.getElementById("card");
+const wordEl    = document.getElementById("word");
+const statsEl   = document.getElementById("stats");
+const deckSelect = document.getElementById("deckSelect");
+
+/** Populate the deck <select> with grouped options. */
+function buildDeckSelect() {
+  const groups = {};
+  for (const d of DECKS) (groups[d.group] = groups[d.group] || []).push(d);
+  deckSelect.innerHTML = "";
+  for (const label of Object.keys(groups)) {
+    const og = document.createElement("optgroup");
+    og.label = label;
+    for (const d of groups[label]) {
+      const opt = document.createElement("option");
+      opt.value = d.id;
+      opt.textContent = d.name;
+      og.appendChild(opt);
+    }
+    deckSelect.appendChild(og);
+  }
+  deckSelect.value = activeDeck.id;
+}
+
+/** Shrink the word font until it fits the card both ways. */
+function fitWord() {
+  const maxW = cardEl.clientWidth  * 0.94;
+  const maxH = cardEl.clientHeight * 0.80;
+  let size = Math.min(cardEl.clientHeight * 0.72, cardEl.clientWidth * 0.9);
+  wordEl.style.fontSize = size + "px";
+  let guard = 60;
+  while ((wordEl.scrollWidth > maxW || wordEl.scrollHeight > maxH) && size > 24 && guard-- > 0) {
+    size *= 0.92;
+    wordEl.style.fontSize = size + "px";
+  }
+}
+
+function renderStats() {
+  const n = currentList().length;
+  const pct = seen ? Math.round((correctCount / seen) * 100) : 0;
+  statsEl.innerHTML = `คำ <b>${n}</b> · เห็น <b>${seen}</b> · ถูก <b>${pct}%</b>`;
+}
+
+function nextWord() {
+  currentWord = pickWord();
+  wordEl.textContent = currentWord;
+  fitWord();
+  renderStats();
+}
+
+function flash(kind) {
+  cardEl.classList.remove("flash-correct", "flash-wrong");
+  void cardEl.offsetWidth; // restart animation
+  cardEl.classList.add(kind === "correct" ? "flash-correct" : "flash-wrong");
+}
+
+/* ====================================================================
+   Actions
+   -------------------------------------------------------------------- */
+function answer(isCorrect) {
+  if (!currentWord) return;
+  const mult = isCorrect ? CORRECT_MULT : WRONG_MULT;
+  weights[currentWord] = clamp(weights[currentWord] * mult);
+  saveWeights();
+  seen++;
+  if (isCorrect) correctCount++;
+  flash(isCorrect ? "correct" : "wrong");
+  nextWord();
+}
+
+/** Reset the frequency counters for the CURRENT deck only. */
+function resetDeck() {
+  if (!confirm(`ล้างค่าความถี่และสถิติของ "${activeDeck.name}"?\nReset weights & stats for this deck?`)) return;
+  for (const w of currentList()) weights[w] = BASE_WEIGHT;
+  seen = 0; correctCount = 0;
+  saveWeights();
+  currentWord = null;
+  nextWord();
+}
+
+function switchDeck(id) {
+  activeDeck = deckById(id);
+  deckSelect.value = activeDeck.id;
+  saveDeck();
+  ensureWeights();
+  seen = 0; correctCount = 0;   // fresh session for the new deck
+  currentWord = null;
+  nextWord();
+}
+
+function stepDeck(delta) {
+  const idx = DECKS.indexOf(activeDeck);
+  const next = (idx + delta + DECKS.length) % DECKS.length;
+  switchDeck(DECKS[next].id);
+}
+
+/* ====================================================================
+   Wiring
+   -------------------------------------------------------------------- */
+document.getElementById("correct").addEventListener("click", () => answer(true));
+document.getElementById("wrong").addEventListener("click", () => answer(false));
+document.getElementById("resetBtn").addEventListener("click", resetDeck);
+document.getElementById("prevDeck").addEventListener("click", () => stepDeck(-1));
+document.getElementById("nextDeck").addEventListener("click", () => stepDeck(1));
+cardEl.addEventListener("click", nextWord); // tap the word to skip without scoring
+deckSelect.addEventListener("change", (e) => switchDeck(e.target.value));
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") answer(true);
+  else if (e.key === "ArrowLeft") answer(false);
+  else if (e.key === " ") { e.preventDefault(); nextWord(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); stepDeck(-1); }
+  else if (e.key === "ArrowDown") { e.preventDefault(); stepDeck(1); }
+});
+
+window.addEventListener("resize", fitWord);
+window.addEventListener("orientationchange", () => setTimeout(fitWord, 200));
+
+/* ---- init ---- */
+loadState();
+buildDeckSelect();
+ensureWeights();
+saveWeights();
+nextWord();
+</script>
+</body>
+</html>
