@@ -1,0 +1,7 @@
+name: thai-flash-card
+
+services:
+  main:
+    build: .
+    ports:
+      - "8080:8080"
