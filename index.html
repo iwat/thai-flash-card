@@ -232,6 +232,7 @@ const MIN_WEIGHT    = 0.15;   // "mastered" floor
 const MAX_WEIGHT    = 25;     // keeps a stubborn word from dominating
 const CORRECT_MULT  = 0.55;   // correct -> appear LESS often
 const WRONG_MULT    = 1.9;    // wrong   -> appear MORE often
+const LEARNED_WEIGHT = 0.2;   // weight <= this counts as "learned" (~3 correct in a row)
 
 const LS_WEIGHTS = "thaiFlash.weights.v1";
 const LS_DECK    = "thaiFlash.deck.v2";
@@ -322,9 +323,11 @@ function fitWord() {
 }
 
 function renderStats() {
-  const n = currentList().length;
+  const list = currentList();
+  const n = list.length;
+  const learned = list.filter(w => weights[w] <= LEARNED_WEIGHT).length;
   const pct = seen ? Math.round((correctCount / seen) * 100) : 0;
-  statsEl.innerHTML = `คำ <b>${n}</b> · เห็น <b>${seen}</b> · ถูก <b>${pct}%</b>`;
+  statsEl.innerHTML = `รู้แล้ว <b>${learned}/${n}</b> ⭐ · เห็น <b>${seen}</b> · ถูก <b>${pct}%</b>`;
 }
 
 function nextWord() {
